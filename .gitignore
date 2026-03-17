@@ -1,0 +1,9 @@
+**/__pycache__/
+SAEs/
+domainbed/
+invariances/
+logs/
+PACS_ResNet_Sketch_Test_Only/
+quadrant_figures/
+resnetk16/
+*.ipynb
