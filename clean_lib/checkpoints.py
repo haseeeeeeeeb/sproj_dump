@@ -5,45 +5,32 @@ from domainbed.algorithms import DANN, CORAL, Mixup, MMD, IRM, ERM, SagNet
 algo_classes = {"DANN": DANN, "CORAL": CORAL, "Mixup": Mixup, "MMD": MMD, "IRM": IRM, "ERM": ERM, "SagNet": SagNet}
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 from domainbed.networks import Identity
+from clean_lib.utils import envs
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-# TEST TO TRAIN ENVS
-envs = {
-    "T0": [1, 2, 3],
-    "T1": [0, 2, 3],
-    "T2": [0, 1, 3],
-    "T3": [0, 1, 2],
-    "T23": [0, 1], 
-    "T13": [0, 2], 
-    "T12": [0, 3], 
-    "T03": [1, 2], 
-    "T02": [1, 3], 
-    "T01": [2, 3]
-} 
-
-
-
-class BackboneManager():
+class CheckpointManager():
    
     def __init__(self, directory: str):
         
         super().__init__()
         self.directory = directory
         self.name = Path(self.directory).name
-        self.algorithm, self.architecture, self.split = self.name.split("_")
-        self.trainenvs = envs[self.split]
-
+        self.algorithm, self.architecture, split = self.name.split("_")
+        self.trainenvs = envs[split]
+        self.testenvs = [int(x) for x in split[1:]]
 
     def load_checkpoints(self, checkpoints: list[int]):
         models = {}
         for checkpoint in checkpoints:
             models[checkpoint] = self.load_backbone(ckpt_number=checkpoint)
 
-        return models
+        self.models = models
 
+    def get_models(self):
+        return self.models
 
     def load_backbone(self, ckpt_number: int):    
         
@@ -66,7 +53,6 @@ class BackboneManager():
         backbone.load_state_dict(checkpoint["model_dict"])
 
         return backbone
-
 
     def get_top_k_checkpoints(self, envs: list[int] = None, k: int = 5):
         

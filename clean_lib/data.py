@@ -112,7 +112,6 @@ def Load_PACS(
 		domains=domains,
 		transform=transform,
 		preload_to_gpu=preload_to_gpu,
-		device=device,
 	)
 
 	train_size = int(train_split * len(dataset))
@@ -138,7 +137,7 @@ def Load_PACS(
 			num_workers=0,
 		)
 	else:
-		pin_memory = torch.cuda.is_available()
+		pin_memory = False
 		train_loader = DataLoader(
 			train_dataset,
 			batch_size=batch_size,
