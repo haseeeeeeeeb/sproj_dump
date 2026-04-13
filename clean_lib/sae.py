@@ -5,8 +5,7 @@ from tqdm import tqdm
 import torch.nn as nn
 from einops import rearrange
 from overcomplete import TopKSAE
-from clean_lib.utils import domains
-from clean_lib.data import Load_PACS
+from clean_lib.data import Load_PACS, pacs_domains
 from clean_lib.utils import extract_features
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
 
@@ -48,7 +47,7 @@ class Normalizer(nn.Module):
 
 
 class SparseAEs():
-    def __init__(self, feature_dim, sae_dim, topk, nb_concepts, rearrange_string, checkpointManager, train_envs):
+    def __init__(self, feature_dim, sae_dim, topk, nb_concepts, rearrange_string, checkpointManager, train_envs, w):
         self.topk = topk
         self.feature_dim = feature_dim
         self.sae_dim = sae_dim
@@ -58,6 +57,7 @@ class SparseAEs():
         self.checkpointManager = checkpointManager
         self.backbones = checkpointManager.get_models()
         self.SAEs = None
+        self.w = w
 
     def load_checkpoint(self, checkpoint_path):
         self.SAEs = {}
@@ -100,7 +100,7 @@ class SparseAEs():
         self.criterion = nn.L1Loss(reduction="mean")  
 
 
-    def train(self, flag="USAE", epochs=250, batch_size=64, full_data_gpu=True, save_dir="./SAEs"):
+    def train(self, flag="USAE", epochs=250, batch_size=64, full_data_gpu=True, save_dir="./SAEs", dataset="PACS"):
         
         run_name = f"{flag}_{self.checkpointManager.algorithm}_{self.checkpointManager.architecture}_T{''.join([str(e) for e in self.checkpointManager.testenvs])}"
         
@@ -119,7 +119,9 @@ class SparseAEs():
         # )
         # wandb.watch(list(self.SAEs.values()), log="all")
 
-        train_dl, test_dl = Load_PACS(domains=[domains[e] for e in self.train_envs], batch_size=batch_size, drop_last=True)
+        if dataset == "PACS":
+            train_dl, test_dl = Load_PACS(domains=[pacs_domains[e] for e in self.train_envs], batch_size=batch_size, drop_last=True)
+
 
         rotator = 0
         pbar = tqdm(range(epochs), desc=f"Training: {run_name}")

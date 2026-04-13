@@ -5,7 +5,7 @@ from domainbed.algorithms import DANN, CORAL, Mixup, MMD, IRM, ERM, SagNet
 algo_classes = {"DANN": DANN, "CORAL": CORAL, "Mixup": Mixup, "MMD": MMD, "IRM": IRM, "ERM": ERM, "SagNet": SagNet}
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 from domainbed.networks import Identity
-from clean_lib.utils import envs
+from clean_lib.data import pacs_envs
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -13,13 +13,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class CheckpointManager():
    
-    def __init__(self, directory: str):
+    def __init__(self, directory: str, dataset="PACS"):
         
         super().__init__()
         self.directory = directory
         self.name = Path(self.directory).name
         self.algorithm, self.architecture, split = self.name.split("_")
-        self.trainenvs = envs[split]
+        if dataset == "PACS":
+            self.trainenvs = pacs_envs[split]
         self.testenvs = [int(x) for x in split[1:]]
 
     def load_checkpoints(self, checkpoints: list[int]):

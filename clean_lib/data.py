@@ -7,6 +7,27 @@ from torch.utils.data import Dataset, DataLoader, random_split
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 		
+pacs_domains = {
+    0: "art_painting", 
+    1: "cartoon",
+    2: "photo",
+    3: "sketch"
+}
+
+# TEST TO TRAIN ENVS
+pacs_envs = {
+    "T0": [1, 2, 3],
+    "T1": [0, 2, 3],
+    "T2": [0, 1, 3],
+    "T3": [0, 1, 2],
+    "T23": [0, 1], 
+    "T13": [0, 2], 
+    "T12": [0, 3], 
+    "T03": [1, 2], 
+    "T02": [1, 3], 
+    "T01": [2, 3]
+} 
+
 
 class PACSDataset(Dataset):
 	def __init__(
