@@ -59,6 +59,14 @@ class SparseAEs():
         self.SAEs = None
         self.w = w
 
+    def get_sae(self, ckpt):
+        return self.SAEs[ckpt]
+
+    
+    def get_backbone(self, ckpt):
+        return self.backbones[ckpt]
+
+
     def load_checkpoint(self, checkpoint_path):
         self.SAEs = {}
         for key in self.backbones.keys():

@@ -1,4 +1,3 @@
-
 import torch
 from tqdm import tqdm
 from clean_lib.data import Load_PACS
@@ -6,58 +5,59 @@ from clean_lib.utils import extract_features
 from clean_lib.processors.processor import Processor
 from einops import rearrange
 from torch.nn import functional as F
-from timm import SelectAdaptivePool2d
+from timm.layers import SelectAdaptivePool2d
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
 
 class R(Processor):
-    def __init__(self, sae, backbone, process_domains, file_path, dataset="PACS"):
-        super().__init__(sae, backbone, process_domains, file_path, dataset)
+    def __init__(self, sae_manager, ckpt, process_domains, file_path, dataset="PACS"):
+        super().__init__(sae_manager, ckpt, process_domains, file_path, dataset)
 
     @classmethod
     def from_processor(cls, processor: Processor):
         return cls(
-            sae=processor.sae,
-            backbone=processor.backbone,
-            process_domains=processor.domains,
+            sae_manager=processor.sae_manager,
+            ckpt=processor.ckpt,
+            process_domains=processor.process_domains,
             file_path=processor.file_path,
             dataset=processor.dataset,
     )
 
     def calculate_r_scores(self):
         
-        discrimination_scores = self._calculate_discrimination_scores_per_domain()
+        discrimination_scores, counts = self._calculate_discrimination_scores_per_domain()
 
-        r_scores = torch.zeros(self.classes, self.nb_concepts, device=device)
+        r_scores = torch.zeros(self.classes, self.sae_manager.nb_concepts, device=device)
 
         for cls in range(self.classes):
-            for i in range(self.nb_concepts):
+            for i in range(self.sae_manager.nb_concepts):
                 concept_scores = discrimination_scores[cls, i, :]  # (nb_domains,)
                 
-                if concept_scores.sum() == 0:
+                if (concept_scores == 0.0).all():
                     continue
 
                 score = concept_scores / concept_scores.sum()
-                entropy = -1 / torch.log(torch.tensor(float(len(self.domains)))) * \
-                        (score * torch.log(score + 1e-12)).sum()
+                entropy = -1 / torch.log(torch.tensor(float(len(self.domains)))) * (score * torch.log(score + 1e-12)).sum()
                 r_scores[cls, i] = entropy
 
-        return r_scores
-
+        return r_scores, discrimination_scores, counts
 
     def _calculate_discrimination_scores_per_domain(self):
-        
+
         pool = SelectAdaptivePool2d(pool_type='avg', flatten=True)
-        accumulated_scores = torch.zeros(self.classes, self.nb_concepts, len(self.domains), device=device)
-        activation_counts  = torch.zeros(self.classes, self.nb_concepts, len(self.domains), device=device)
+        accumulated_scores = torch.zeros(self.classes, self.sae_manager.nb_concepts, len(self.domains), device=device)
+        activation_counts  = torch.zeros(self.classes, self.sae_manager.nb_concepts, len(self.domains), device=device)
+
+        self.sae.to(device)
+        self.backbone.to(device)
 
         for d, domain in enumerate(self.domains):
             if self.dataset == "PACS":
                 dataloader, _ = Load_PACS(domains=[domain], batch_size=64)
 
-            for x, y in tqdm(dataloader, desc=f"Discrimination scores [{domain}]"):
+            for x, y in tqdm(dataloader, desc=f"R scores [{domain}]"):
                 x, y = x.to(device), y.to(device)
                 n = x.size(0)
 
@@ -108,4 +108,10 @@ class R(Processor):
                         accumulated_scores[:, c, d].scatter_add_(0, active_classes, active_drops)
                         activation_counts[:, c, d].scatter_add_(0, active_classes, torch.ones_like(active_drops))
 
-        return accumulated_scores / activation_counts.clamp(min=1)
+        return accumulated_scores / activation_counts.clamp(min=1), activation_counts
+    
+    def process(self):
+        r_scores, disc_scores, counts = self.calculate_r_scores()
+        self.dump(r_scores, name="R")
+        self.dump(disc_scores, name="R_acts")
+        self.dump(counts, name="R_counts")

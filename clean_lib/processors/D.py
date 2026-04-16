@@ -6,22 +6,22 @@ from clean_lib.utils import extract_features
 from clean_lib.processors.processor import Processor
 from einops import rearrange
 from torch.nn import functional as F
-from timm import SelectAdaptivePool2d
+from timm.layers import SelectAdaptivePool2d
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
 
 class D(Processor):
-    def __init__(self, sae, backbone, process_domains, file_path, dataset="PACS"):
-        super().__init__(sae, backbone, process_domains, file_path, dataset)
+    def __init__(self, sae_manager, ckpt, process_domains, file_path, dataset="PACS"):
+        super().__init__(sae_manager, ckpt, process_domains, file_path, dataset)
 
     @classmethod
     def from_processor(cls, processor: Processor):
         return cls(
-            sae=processor.sae,
-            backbone=processor.backbone,
-            process_domains=processor.domains,
+            sae_manager=processor.sae_manager,
+            ckpt=processor.ckpt,
+            process_domains=processor.process_domains,
             file_path=processor.file_path,
             dataset=processor.dataset,
     )
@@ -30,11 +30,14 @@ class D(Processor):
     def calculate_discrimination_scores(self):
          
         pool = SelectAdaptivePool2d(pool_type='avg', flatten=True)
-        accumulated_scores = torch.zeros((self.classes, self.nb_concepts), device=device)
-        activation_counts = torch.zeros((self.num_classes, self.nb_concepts), device=device)
+        accumulated_scores = torch.zeros((self.classes, self.sae_manager.nb_concepts), device=device)
+        activation_counts = torch.zeros((self.classes, self.sae_manager.nb_concepts), device=device)
         
 
         dataloader, _ = Load_PACS(domains=self.domains, batch_size=64)
+        
+        self.sae.to(device)
+        self.backbone.to(device)
 
         for x, y in tqdm(dataloader, desc="Calculating Concept Discrimination"):
             x, y = x.to(device), y.to(device)

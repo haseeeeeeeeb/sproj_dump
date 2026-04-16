@@ -37,7 +37,6 @@ class CheckpointManager():
         
         
         checkpoint = torch.load(os.path.join(self.directory, f"model_step{ckpt_number}.pkl"))
-
         ModelClass = algo_classes[self.algorithm]
 
         backbone = ModelClass(

@@ -111,7 +111,7 @@ def Load_PACS(
 	shuffle_train: bool = True,
 	drop_last: bool = True,
 	preload_to_gpu: bool = False,
-	num_workers: int = 4,
+	num_workers: int = 0,
 ):
 	if train_split <= 0.0 or train_split >= 1.0:
 		raise ValueError("train_split must be in (0, 1)")
@@ -158,7 +158,7 @@ def Load_PACS(
 			num_workers=0,
 		)
 	else:
-		pin_memory = False
+		pin_memory = True
 		train_loader = DataLoader(
 			train_dataset,
 			batch_size=batch_size,

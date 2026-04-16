@@ -9,23 +9,26 @@ device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
 
 class H(Processor):
-    def __init__(self, sae, backbone, process_domains, file_path, dataset="PACS"):
-        super().__init__(sae, backbone, process_domains, file_path, dataset)
+    def __init__(self, sae_manager, ckpt, process_domains, file_path, dataset="PACS"):
+        super().__init__(sae_manager, ckpt, process_domains, file_path, dataset)
 
     @classmethod
     def from_processor(cls, processor: Processor):
         return cls(
-            sae=processor.sae,
-            backbone=processor.backbone,
-            process_domains=processor.domains,
+            sae_manager=processor.sae_manager,
+            ckpt=processor.ckpt,
+            process_domains=processor.process_domains,
             file_path=processor.file_path,
             dataset=processor.dataset,
     )
 
     def calculate_mean_activations(self):
-        z = torch.zeros((7, self.nb_concepts, len(self.domains))).to(self.device)
-        counts = torch.zeros((7, self.nb_concepts)).to(self.device)
-        n_images = torch.zeros((7, len(self.domains))).to(self.device)
+        z = torch.zeros((7, self.sae_manager.nb_concepts, len(self.domains))).to(device)
+        counts = torch.zeros((7, self.sae_manager.nb_concepts)).to(device)
+        n_images = torch.zeros((7, len(self.domains))).to(device)
+        self.backbone.to(device)
+        self.sae.to(device)
+
 
         for d, domain in enumerate(self.domains):
 
@@ -39,11 +42,11 @@ class H(Processor):
 
                     x = extract_features(self.backbone, img)
                     x = self.sae.normalizer(x)
-                    x = rearrange(x, self.sae.rearrange_string)
+                    x = rearrange(x, self.sae_manager.rearrange_string)
 
                     _, heatmaps = self.sae.encode(x)
 
-                    heatmaps = rearrange(heatmaps, '(n w h) d -> n w h d', w=self.w, h=self.w)
+                    heatmaps = rearrange(heatmaps, '(n w h) d -> n w h d', w=self.sae_manager.w, h=self.sae_manager.w)
                     heatmaps_summed = heatmaps.sum(dim=1).sum(dim=1)  # (n, d)
 
                     for cls in range(7):
@@ -63,12 +66,12 @@ class H(Processor):
     
     def calculate_invariance(self, z):
 
-        invariance = torch.zeros((self.classes, self.nb_concepts)).to(z.device)
+        invariance = torch.zeros((self.classes, self.sae_manager.nb_concepts)).to(z.device)
 
         for cls in range(self.classes):
             processed = z[cls]  # (nb_concepts, domains)
 
-            for i in range(self.nb_concepts):
+            for i in range(self.sae_manager.nb_concepts):
                 if processed[i, :].sum() == 0:
                     continue
 

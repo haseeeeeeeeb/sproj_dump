@@ -5,23 +5,34 @@ from pathlib import Path
 from clean_lib.data import pacs_domains
 
 
-class Processor():
-    def __init__(self, sae, backbone, process_domains, file_path, dataset="PACS"):
+class Processor:
+    def __init__(self, sae_manager, ckpt, process_domains, file_path, dataset="PACS"):
         
-        self.sae = sae
-        self.backbone = backbone
+
+        self.sae_manager = sae_manager
+        self.ckpt = ckpt
+
+        self.sae = self.sae_manager.get_sae(self.ckpt)
+        self.backbone = self.sae_manager.get_backbone(self.ckpt)
+        
+        ## All Processing Needs to be in Eval Mode
+        self.sae.eval()
+        self.backbone.eval()
+
+
         self.dataset = dataset
-
-
-        ## Configure FIles
-        self.create_template()
-        self.file_path = file_path
-
         
         # Configure Dataset-specific parameters
         if self.dataset == "PACS":
+            print("Configured for PACS dataset.")
             self.classes = 7
             self.all_domains = pacs_domains
+
+
+
+        ## Configure FIles
+        self.file_path = file_path
+        self.create_template()
 
         self.process_domains = process_domains
         self.domains = [self.all_domains[e] for e in self.process_domains]
@@ -29,25 +40,30 @@ class Processor():
 
 
     def create_template(self):
-        if Path(self.file_path).exists():
+        path_obj = Path(self.file_path)
+        
+        if path_obj.exists():
             return
+
+        path_obj.parent.mkdir(parents=True, exist_ok=True)
 
         template = {
             str(cls_idx): {
                 str(concept_idx): {}
-                for concept_idx in range(self.nb_concepts)
+                for concept_idx in range(self.sae_manager.nb_concepts)
             }
-            for cls_idx in range(self.cls)
+            for cls_idx in range(self.classes)
         }
 
         with open(self.file_path, "w") as f:
             json.dump(template, f, indent=4)
 
 
+
     def dump(self, scores: torch.Tensor, name: str):
 
-        assert scores.shape[0] == self.cls, (f"Expected first dim {self.cls}, got {scores.shape[0]}")
-        assert scores.shape[1] == self.nb_concepts, (f"Expected second dim {self.nb_concepts}, got {scores.shape[1]}")
+        assert scores.shape[0] == self.classes, (f"Expected first dim {self.classes}, got {scores.shape[0]}")
+        assert scores.shape[1] == self.sae_manager.nb_concepts, (f"Expected second dim {self.sae_manager.nb_concepts}, got {scores.shape[1]}")
 
         scores_np = scores.detach().cpu()
 
@@ -59,18 +75,18 @@ class Processor():
         with open(self.file_path, "r") as f:
             data = json.load(f)
 
-        for cls_idx in range(self.cls):
-            for concept_idx in range(self.nb_concepts):
+        # Clear all existing values for this name before writing new ones
+        for cls_idx in range(len(data)):
+            for concept_idx in range(len(data[str(cls_idx)])):
+                data[str(cls_idx)][str(concept_idx)].pop(name, None)
+
+        for cls_idx in range(self.classes):
+            for concept_idx in range(self.sae_manager.nb_concepts):
                 value = to_dumpable(scores_np[cls_idx, concept_idx])
                 data[str(cls_idx)][str(concept_idx)][name] = value
 
         with open(self.file_path, "w") as f:
             json.dump(data, f, indent=4)
-
-
-
-
-
 
 
 
