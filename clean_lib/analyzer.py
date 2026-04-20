@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
 from typing import Union
+import numpy as np
 
 
 class Analyzer:
@@ -118,7 +119,6 @@ class Analyzer:
     # ------------------------------------------------------------------ #
     #  Plot                                                                #
     # ------------------------------------------------------------------ #
-
     def plot_concepts(
         self,
         x_name: str,
@@ -130,24 +130,28 @@ class Analyzer:
         figsize: tuple[int, int] = (10, 7),
         classes: list = None,
         view_labels: bool = False,
+        logx: bool = False,
+        logy: bool = False,
+        
     ):
         """
         Scatter plot of all concepts currently in data.
         Each class gets a distinct colour; each point is optionally labelled with its concept index.
 
         Args:
-            x_name:    Name key to use for the x-axis.
-            y_name:    Name key to use for the y-axis.
-            x_reduce:  'mean' or 'sum' if x values are arrays.
-            y_reduce:  'mean' or 'sum' if y values are arrays.
-            xlim:      (min, max) for the x-axis.
-            ylim:      (min, max) for the y-axis.
-            figsize:   Figure size.
-            classes:   List of class keys to plot. If None, all classes are plotted.
+            x_name:      Name key to use for the x-axis.
+            y_name:      Name key to use for the y-axis.
+            x_reduce:    'mean' or 'sum' if x values are arrays.
+            y_reduce:    'mean' or 'sum' if y values are arrays.
+            xlim:        (min, max) for the x-axis.
+            ylim:        (min, max) for the y-axis.
+            figsize:     Figure size.
+            classes:     List of class keys to plot. If None, all classes are plotted.
             view_labels: If True, display concept labels on the plot. Default is False.
+            logx:        If True, plot the x-axis on a logarithmic scale.
+            logy:        If True, plot the y-axis on a logarithmic scale.
         """
         fig, ax = plt.subplots(figsize=figsize)
-        # Determine which classes to plot
         classes_to_plot = classes if classes is not None else list(self.data.keys())
         colors = cm.get_cmap("tab10", len(classes_to_plot))
 
@@ -185,6 +189,11 @@ class Analyzer:
         ax.legend(loc="best", fontsize=8)
         ax.grid(True, linestyle="--", alpha=0.4)
 
+        if logx:
+            ax.set_xscale("log")
+        if logy:
+            ax.set_yscale("log")
+
         if xlim:
             ax.set_xlim(xlim)
         if ylim:
@@ -192,7 +201,6 @@ class Analyzer:
 
         plt.tight_layout()
         plt.show()
-
 
     def plot_plotly(
         self,
@@ -386,3 +394,127 @@ class Analyzer:
             }
 
         self.data = filtered
+
+
+
+    # ------------------------------------------------------------------ #
+    def plot_concepts_with_dict(
+        self,
+        x_name: str,
+        y_name: str,
+        data: dict,
+        x_reduce: str = None,
+        y_reduce: str = None,
+        xlim: tuple[float, float] = None,
+        ylim: tuple[float, float] = None,
+        figsize: tuple[int, int] = (10, 7),
+        classes: list = None,
+        view_labels: bool = False,
+        logx: bool = False,
+        logy: bool = False,
+        fit_line: bool = False,  # <-- NEW PARAMETER
+    ):
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        colors = cm.get_cmap("tab10", len(data.keys()))
+
+        # Distinct markers to differentiate between datasets
+        markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "X"]
+
+        for ds_idx, (ds_name, data_dict) in enumerate(data.items()):
+            marker = markers[ds_idx % len(markers)]
+
+            for cls_idx, cls_key in enumerate(classes):
+                if f"{cls_key}" not in data_dict:
+                    continue
+                
+                concepts = data_dict[f"{cls_key}"]
+                color = colors(cls_idx + ds_idx)
+                xs, ys, labels = [], [], []
+
+                for concept_key, attributes in concepts.items():
+                    if x_name not in attributes or y_name not in attributes:
+                        continue
+                    
+                    x_val = self._resolve_value(attributes[x_name], reduce=x_reduce)
+                    y_val = self._resolve_value(attributes[y_name], reduce=y_reduce)
+                    
+                    xs.append(x_val)
+                    ys.append(y_val)
+                    labels.append(concept_key)
+
+                # Append dataset name to label to differentiate in legend
+                legend_label = f"{ds_name} - Class {cls_key}"
+                
+                ax.scatter(
+                    xs, ys, 
+                    color=color, 
+                    marker=marker, 
+                    label=legend_label, 
+                    s=10, 
+                    zorder=3
+                )
+
+                # --- NEW FIT LINE LOGIC ---
+                if fit_line and len(xs) > 1:
+                    import numpy as np
+                    xs_arr = np.array(xs)
+                    ys_arr = np.array(ys)
+                    
+                    if logx and logy:
+                        # 1. Filter out zeros/negatives (log of <= 0 is undefined)
+                        valid = (xs_arr > 0) & (ys_arr > 0)
+                        
+                        if np.sum(valid) > 1:
+                            x_val = xs_arr[valid]
+                            y_val = ys_arr[valid]
+                            
+                            # 2. Calculate fit on the log10 of the data
+                            m, b = np.polyfit(np.log10(x_val), np.log10(y_val), 1)
+                            
+                            # 3. Create the fit line coordinates
+                            x_fit = np.array([min(x_val), max(x_val)])
+                            
+                            # y = 10^(m * log10(x) + b)
+                            y_fit = 10**(m * np.log10(x_fit) + b)
+                            
+                            ax.plot(x_fit, y_fit, color=color, linestyle="--", alpha=0.8, zorder=2)
+                    else:
+                        # Standard linear fit if not on log scales
+                        m, b = np.polyfit(xs_arr, ys_arr, 1)
+                        x_fit = np.array([min(xs_arr), max(xs_arr)])
+                        y_fit = m * x_fit + b
+                        ax.plot(x_fit, y_fit, color=color, linestyle="--", alpha=0.8, zorder=2)
+                # --------------------------
+                
+                if view_labels:
+                    for x_val, y_val, label in zip(xs, ys, labels):
+                        ax.annotate(
+                            label,
+                            (x_val, y_val),
+                            textcoords="offset points",
+                            xytext=(5, 5),
+                            fontsize=7,
+                            color=color,
+                        )
+
+        ax.set_xlabel(x_name)
+        ax.set_ylabel(y_name)
+        ax.set_title(f"{x_name} vs {y_name}")
+
+        # Move legend outside if it gets too large from multiple datasets
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), fontsize=8)
+        ax.grid(True, linestyle="--", alpha=0.4)
+
+        if logx:
+            ax.set_xscale("log")
+        if logy:
+            ax.set_yscale("log")
+
+        if xlim:
+            ax.set_xlim(xlim)
+        if ylim:
+            ax.set_ylim(ylim)
+
+        plt.tight_layout()
+        plt.show()
