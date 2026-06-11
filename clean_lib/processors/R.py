@@ -39,7 +39,15 @@ class R(Processor):
                     continue
 
                 score = concept_scores / concept_scores.sum()
-                entropy = -1 / torch.log(torch.tensor(float(len(self.domains)))) * (score * torch.log(score + 1e-12)).sum()
+
+                if (score < 0).any():
+                    print(f"Warning: Negative score for class {cls}, concept {i}. Setting to zero.")
+                    print(concept_scores)
+                    entropy = -1
+
+                else:
+                    entropy = -1 / torch.log(torch.tensor(float(len(self.domains)))) * (score * torch.log(score + 1e-12)).sum()
+
                 r_scores[cls, i] = entropy
 
         return r_scores, discrimination_scores, counts

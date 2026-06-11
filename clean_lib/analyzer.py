@@ -4,6 +4,9 @@ import matplotlib.cm as cm
 import numpy as np
 from typing import Union
 import numpy as np
+from sklearn.cluster import KMeans
+import numpy as np
+import torch
 
 
 class Analyzer:
@@ -518,3 +521,112 @@ class Analyzer:
 
         plt.tight_layout()
         plt.show()
+
+
+    def get_mask(self):
+            """
+            Returns a boolean PyTorch tensor of dimensions (classes x total_concepts).
+            Everything is handled within PyTorch.
+            """
+            # 1. Load original data to define the full grid dimensions
+            original_data = self._load()
+            
+            # 2. Identify and sort keys numerically to maintain index consistency
+            all_class_keys = sorted(original_data.keys(), key=lambda x: int(x))
+            
+            all_concept_keys = set()
+            for concepts in original_data.values():
+                all_concept_keys.update(concepts.keys())
+            all_concept_keys = sorted(list(all_concept_keys), key=lambda x: int(x))
+            
+            nb_classes = len(all_class_keys)
+            nb_concepts = len(all_concept_keys)
+            
+            # 3. Initialize a PyTorch boolean tensor filled with False
+            mask = torch.zeros((nb_classes, nb_concepts), dtype=torch.bool)
+            
+            # 4. Map keys to their respective index positions
+            class_to_idx = {key: i for i, key in enumerate(all_class_keys)}
+            concept_to_idx = {key: i for i, key in enumerate(all_concept_keys)}
+            
+            # 5. Populate the mask based on the current (filtered) state of self.data
+            for cls_key, concepts in self.data.items():
+                if cls_key in class_to_idx:
+                    cls_idx = class_to_idx[cls_key]
+                    for concept_key in concepts.keys():
+                        if concept_key in concept_to_idx:
+                            concept_idx = concept_to_idx[concept_key]
+                            mask[cls_idx, concept_idx] = True
+
+            ## invert mask (True for concepts not present, false for those present)
+            mask = ~mask                
+            return mask
+
+    def filter_by_cluster(self, names: Union[str, list[str]], n_clusters: int, keep_clusters: list[int] = None, reduce: str = "mean"):
+        
+        if isinstance(names, str):
+            names = [names]
+
+        new_data = {}
+
+        # ANSI colors for the display
+        BOLD = "\033[1m"
+        RESET = "\033[0m"
+        DIM = "\033[2m"
+        CLASS_CLR = "\033[38;5;39m"
+
+        print(f"\n{BOLD}Per-Class Cluster Analysis (k={n_clusters}){RESET}")
+
+        for cls_key, concepts in self.data.items():
+            if not concepts:
+                new_data[cls_key] = {}
+                continue
+
+            # 1. Extract features for this specific class
+            concept_keys = []
+            features = []
+            for c_key, attrs in concepts.items():
+                try:
+                    vec = [self._resolve_value(attrs[n], reduce=reduce) for n in names]
+                    features.append(vec)
+                    concept_keys.append(c_key)
+                except KeyError:
+                    continue
+
+            X = np.array(features)
+
+            # Safety check: K-Means needs at least as many points as clusters
+            current_k = min(n_clusters, len(X))
+            if current_k < 1:
+                new_data[cls_key] = {}
+                continue
+
+            # 2. Run KMeans locally
+            kmeans = KMeans(n_clusters=current_k, n_init=10, random_state=42)
+            labels = kmeans.fit_predict(X)
+            centroids = kmeans.cluster_centers_
+
+            # 3. Print report for this class
+            print(f"\n  {CLASS_CLR}{BOLD}Class {cls_key}{RESET} ({len(X)} concepts)")
+            for i, center in enumerate(centroids):
+                formatted_center = ", ".join([f"{names[j]}: {center[j]:.4f}" for j in range(len(names))])
+                count = np.sum(labels == i)
+                print(f"    Cluster {i}: ({formatted_center}) {DIM}[{count} concepts]{RESET}")
+
+            # 4. Apply filter
+            if keep_clusters is not None:
+                filtered_concepts = {}
+                for idx, label in enumerate(labels):
+                    if label in keep_clusters:
+                        c_key = concept_keys[idx]
+                        filtered_concepts[c_key] = concepts[c_key]
+                new_data[cls_key] = filtered_concepts
+            else:
+                # If no keep_clusters provided, we don't change the data
+                new_data[cls_key] = concepts
+
+        if keep_clusters is not None:
+            self.data = new_data
+            print(f"\n{BOLD}Filtering complete.{RESET} Kept clusters: {keep_clusters} across all classes.")
+        else:
+            print(f"\n{DIM}No clusters specified to keep. Data remains unchanged.{RESET}")

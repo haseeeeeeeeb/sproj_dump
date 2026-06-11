@@ -1,5 +1,4 @@
 import os
-import wandb
 import torch
 from tqdm import tqdm
 import torch.nn as nn
@@ -47,10 +46,9 @@ class Normalizer(nn.Module):
 
 
 class SparseAEs():
-    def __init__(self, feature_dim, sae_dim, topk, nb_concepts, rearrange_string, checkpointManager, train_envs, w):
+    def __init__(self, feature_dim, topk, nb_concepts, rearrange_string, checkpointManager, train_envs, w):
         self.topk = topk
         self.feature_dim = feature_dim
-        self.sae_dim = sae_dim
         self.nb_concepts = nb_concepts
         self.rearrange_string = rearrange_string
         self.train_envs = train_envs

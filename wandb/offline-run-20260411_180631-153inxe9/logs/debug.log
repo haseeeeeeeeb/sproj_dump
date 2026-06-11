@@ -1,0 +1,10 @@
+2026-04-11 18:06:31,617 INFO    MainThread:70908 [wandb_setup.py:_flush():81] Current SDK version is 0.25.1
+2026-04-11 18:06:31,617 INFO    MainThread:70908 [wandb_setup.py:_flush():81] Configure stats pid to 70908
+2026-04-11 18:06:31,617 INFO    MainThread:70908 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2026-04-11 18:06:31,617 INFO    MainThread:70908 [wandb_init.py:setup_run_log_directory():717] Logging user logs to c:\Users\sproj_ha\Desktop\SGen_Vision_Interp\Vision_Interp\wandb\offline-run-20260411_180631-153inxe9\logs\debug.log
+2026-04-11 18:06:31,617 INFO    MainThread:70908 [wandb_init.py:setup_run_log_directory():718] Logging internal logs to c:\Users\sproj_ha\Desktop\SGen_Vision_Interp\Vision_Interp\wandb\offline-run-20260411_180631-153inxe9\logs\debug-internal.log
+2026-04-11 18:06:31,617 INFO    MainThread:70908 [wandb_init.py:monkeypatch_ipython():636] configuring jupyter hooks <wandb.sdk.wandb_init._WandbInit object at 0x00000177826F3350>
+2026-04-11 18:06:31,618 INFO    MainThread:70908 [wandb_init.py:init():844] calling init triggers
+2026-04-11 18:06:31,618 INFO    MainThread:70908 [wandb_init.py:init():849] wandb.init called with sweep_config: {}
+config: {'flag': 'USAETest', 'epochs': 250, 'batch_size': 64, 'algorithm': 'ERM', 'architecture': 'ResNet', 'test_envs': [3], '_wandb': {}}
+2026-04-11 18:06:31,618 INFO    MainThread:70908 [wandb_init.py:init():892] starting backend
